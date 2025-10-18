@@ -1,0 +1,33 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-env --watch src/index.ts",
+    "start": "deno run --allow-net --allow-read --allow-env src/index.ts",
+    "check": "deno check src/index.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  },
+  "imports": {
+    "hono": "npm:hono@^4.6",
+    "@hono/zod-openapi": "npm:@hono/zod-openapi@^0.16",
+    "@hono/swagger-ui": "npm:@hono/swagger-ui@^0.4",
+    "zod": "npm:zod@^3.23",
+    "@tetherto/wdk": "npm:@tetherto/wdk@^1.0.0-beta.3",
+    "@tetherto/wdk-wallet-evm": "npm:@tetherto/wdk-wallet-evm@^1.0.0-beta.3",
+    "ethers": "npm:ethers@^6.15.0",
+    "@std/dotenv/load": "jsr:@std/dotenv@^0.225/load"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window", "dom"]
+  },
+  "nodeModulesDir": "auto",
+  "lock": false,
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  }
+}
