@@ -30,3 +30,5 @@ temp/
 
 # Deno
 deno.lock
+
+/src/generated/prisma

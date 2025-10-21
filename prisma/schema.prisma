@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Users {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  wallets      Wallets?
+  transactions Transactions[]
+  withdrawals  Withdrawals[]
+
+  @@index([phone])
+  @@map("users")
+}
+
+model Wallets {
+  userId    String   @map("user_id") @db.Uuid
+  address   String   @unique
+  publicKey String?  @map("public_key")
+  type      String
+  chain     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Decentralized key management
+  keyManagement  String  @default("shamir") @map("key_management") // 'shamir' | 'custodial' | 'mpc'
+  backendShare1  String? @map("backend_share_1") @db.Text // Encrypted Shamir share 1
+  backendShare2  String? @map("backend_share_2") @db.Text // Encrypted Shamir share 2
+  shareThreshold Int?    @default(3) @map("share_threshold") // Number of shares needed
+  totalShares    Int?    @default(5) @map("total_shares") // Total shares created
+  chainAddresses Json?   @map("chain_addresses") // All chain addresses as JSON: { ethereum: "0x...", polygon: "0x...", etc }
+
+  user      Users       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyShares KeyShares[]
+
+  @@id([userId])
+  @@index([address])
+  @@index([userId, chain])
+  @@map("wallets")
+}
+
+model KeyShares {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAddress  String    @map("wallet_address")
+  shareIndex     Int       @map("share_index")
+  encryptedShare String    @map("encrypted_share") @db.Text
+  location       String // 'backend' | 'merchant_device' | 'merchant_backup' | 'third_party'
+  metadata       String?   @db.Text // JSON metadata about the share
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastAccessedAt DateTime? @map("last_accessed_at")
+
+  wallet Wallets @relation(fields: [walletAddress], references: [address], onDelete: Cascade)
+
+  @@unique([walletAddress, shareIndex])
+  @@index([walletAddress])
+  @@index([location])
+  @@map("key_shares")
+}
+
+model Transactions {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  txHash        String   @unique @map("tx_hash")
+  timestamp     DateTime
+  type          String
+  fromAddress   String   @map("from_address")
+  toAddress     String   @map("to_address")
+  amount        Decimal  @db.Decimal(38, 18)
+  token         String
+  tokenAddress  String?  @map("token_address") // ERC-20 contract address
+  chain         String   @default("polygon") // Network where transaction occurred
+  status        String
+  confirmations Int?
+  memo          String?
+  fiatValue     Decimal? @map("fiat_value") @db.Decimal(18, 2) // Fiat equivalent at time of transaction
+  fiatCurrency  String?  @default("USD") @map("fiat_currency")
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([txHash])
+  @@index([type])
+  @@index([token])
+  @@index([chain])
+  @@map("transactions")
+}
+
+model Withdrawals {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  amountUsdt  Decimal   @map("amount_usdt") @db.Decimal(38, 18)
+  amountFiat  Decimal?  @map("amount_fiat") @db.Decimal(38, 2)
+  currency    String
+  bankAccount String    @map("bank_account")
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  completedAt DateTime? @map("completed_at")
+  status      String
+  offrampTxId String?   @map("offramp_tx_id")
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+model WebhooksLogs {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payload   String   @db.Text
+  timestamp DateTime @default(now())
+  processed Boolean  @default(false)
+  source    String?
+
+  @@index([timestamp])
+  @@index([processed])
+  @@map("webhooks_logs")
+}

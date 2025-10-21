@@ -13,8 +13,14 @@
     "zod": "npm:zod@^3.23",
     "@tetherto/wdk": "npm:@tetherto/wdk@^1.0.0-beta.3",
     "@tetherto/wdk-wallet-evm": "npm:@tetherto/wdk-wallet-evm@^1.0.0-beta.3",
+    "@tetherto/wdk-wallet-btc": "npm:@tetherto/wdk-wallet-btc@^1.0.0-beta.3",
     "ethers": "npm:ethers@^6.15.0",
-    "@std/dotenv/load": "jsr:@std/dotenv@^0.225/load"
+    "@std/dotenv/load": "jsr:@std/dotenv@^0.225/load",
+    "@prisma/client": "npm:@prisma/client@^5.0.0",
+    "prisma": "npm:prisma@^5.0.0",
+    "secrets.js-34r7h": "npm:secrets.js-34r7h@^2.0.1",
+    "bip39": "npm:bip39@^3.1.0",
+    "@types/node": "npm:@types/node@^20.0.0"
   },
   "compilerOptions": {
     "strict": true,

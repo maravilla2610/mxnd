@@ -8,9 +8,14 @@ import { prettyJSON } from 'hono/pretty-json';
 import { swaggerUI } from '@hono/swagger-ui';
 
 // Import OpenAPI routes
-import walletRoutes from './routes/openapi/wallet.routes.ts';
 import balanceRoutes from './routes/openapi/balance.routes.ts';
 import transferRoutes from './routes/openapi/transfer.routes.ts';
+import authRoutesOpenAPI from './routes/openapi/auth.routes.ts';
+import merchantWalletRoutes from './routes/openapi/merchant-wallet.routes.ts';
+import recoveryRoutesOpenAPI from './routes/openapi/recovery.routes.ts';
+
+// Import regular routes (for webhooks - no OpenAPI needed)
+import webhookRoutes from './routes/webhook.routes.ts';
 
 // Initialize OpenAPI Hono app
 const app = new OpenAPIHono();
@@ -32,58 +37,98 @@ app.get('/', (c) => {
       openapi: '/doc'
     },
     endpoints: {
+      auth: '/api/v1/auth',
       wallet: '/api/v1/wallet',
       balance: '/api/v1/balance',
       transfer: '/api/v1/transfer',
+      webhooks: '/api/v1/webhook',
+      recovery: '/api/v1/recovery'
     }
   });
 });
 
-// API Routes
-app.route('/api/v1/wallet', walletRoutes);
+// API Routes (OpenAPI documented)
+app.route('/api/v1/auth', authRoutesOpenAPI);
+app.route('/api/v1/wallet', merchantWalletRoutes);
+app.route('/api/v1/recovery', recoveryRoutesOpenAPI);
+
+// Legacy OpenAPI routes (can be deprecated)
 app.route('/api/v1/balance', balanceRoutes);
 app.route('/api/v1/transfer', transferRoutes);
 
-// OpenAPI documentation endpoint
-app.doc('/doc', {
-  openapi: '3.1.0',
-  info: {
-    title: 'MXND Backend API',
-    version: '1.0.0',
-    description: 'RESTful API for managing MXND stablecoin across Ethereum, Polygon, and Avalanche using Tether WDK',
-    contact: {
-      name: 'API Support',
-      url: 'https://github.com/tetherto/wdk-core'
+// Webhook routes (internal, no OpenAPI)
+app.route('/api/v1/webhook', webhookRoutes);
+
+// Override /doc endpoint to inject security schemes
+app.get('/doc', (c) => {
+  // Get the base OpenAPI document from registered routes
+  const baseDoc = {
+    openapi: '3.1.0',
+    info: {
+      title: 'MXND Backend API',
+      version: '1.0.0',
+      description: 'RESTful API for managing MXND stablecoin across Ethereum, Polygon, and Avalanche using Tether WDK',
+      contact: {
+        name: 'API Support',
+        url: 'https://github.com/tetherto/wdk-core'
+      },
+      license: {
+        name: 'ISC',
+        url: 'https://opensource.org/licenses/ISC'
+      }
     },
-    license: {
-      name: 'ISC',
-      url: 'https://opensource.org/licenses/ISC'
+    servers: [
+      {
+        url: 'http://localhost:3000',
+        description: 'Development server'
+      }
+    ],
+    tags: [
+      {
+        name: 'Authentication',
+        description: 'OTP-based authentication and user management'
+      },
+      {
+        name: 'Merchant Wallet',
+        description: 'Decentralized wallet operations for merchants - addresses, balances, transactions'
+      },
+      {
+        name: 'Recovery',
+        description: 'Wallet recovery using Shamir Secret Sharing (3-of-5 threshold)'
+      },
+      {
+        name: 'Wallet',
+        description: '[Legacy] Wallet management operations'
+      },
+      {
+        name: 'Balance',
+        description: '[Legacy] Balance queries'
+      },
+      {
+        name: 'Transfer',
+        description: '[Legacy] Transfer operations'
+      }
+    ],
+    externalDocs: {
+      description: 'Decentralized Wallet Architecture Documentation',
+      url: 'https://github.com/yourusername/mxnd-backend/blob/main/DECENTRALIZED_WALLET_ARCHITECTURE.md'
     }
-  },
-  servers: [
-    {
-      url: 'http://localhost:3000',
-      description: 'Development server'
+  };
+
+  // Get generated document from OpenAPIHono
+  const generatedDoc = app.getOpenAPIDocument(baseDoc);
+
+  // Inject security schemes after generation
+  generatedDoc.components = generatedDoc.components || {};
+  generatedDoc.components.securitySchemes = {
+    Bearer: {
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT'
     }
-  ],
-  tags: [
-    {
-      name: 'Wallet',
-      description: 'Wallet management operations - create wallets and retrieve addresses'
-    },
-    {
-      name: 'Balance',
-      description: 'Balance queries - check MXND token balances across chains'
-    },
-    {
-      name: 'Transfer',
-      description: 'Transfer operations - send MXND tokens and estimate gas costs'
-    }
-  ],
-  externalDocs: {
-    description: 'Tether WDK Documentation',
-    url: 'https://docs.wallet.tether.io/'
-  }
+  };
+
+  return c.json(generatedDoc);
 });
 
 // Swagger UI
@@ -126,19 +171,23 @@ console.log(`
   • OpenAPI:     http://localhost:${port}/doc
 
 Available endpoints:
-  • POST   /api/v1/wallet              - Create wallet
-  • POST   /api/v1/wallet/recover      - Recover wallet from seed phrase
-  • GET    /api/v1/wallet/:id          - Get wallet info
-  • GET    /api/v1/balance/:chain/:id  - Get balance
-  • GET    /api/v1/balance/:id         - Get all balances
-  • POST   /api/v1/transfer            - Send MXND
-  • POST   /api/v1/transfer/quote      - Estimate gas cost
-  • POST   /api/v1/token/transfer      - Send any ERC-20 token
-  • POST   /api/v1/token/balance       - Get any token balance
-  • POST   /api/v1/token/estimate      - Estimate token transfer cost
-  • POST   /api/v1/token/transfer-with-seed - Send token with seed phrase
-  • POST   /api/v1/token/balance-with-seed  - Get balance with seed phrase
-  • GET    /api/v1/token/info/:chain/:address - Get token info
+  🔐 Auth & Onboarding:
+  • POST   /api/v1/auth/request-otp    - Request OTP for login
+  • POST   /api/v1/auth/verify-otp     - Verify OTP and login (creates wallet)
+  • GET    /api/v1/auth/profile        - Get user profile
+
+  💼 Wallet Management (Decentralized):
+  • GET    /api/v1/wallet/address      - Get wallet address (QR)
+  • GET    /api/v1/wallet/balance      - Get USDT balance
+  • GET    /api/v1/wallet/balances     - Get multi-currency balances
+  • GET    /api/v1/wallet/transactions - Get transaction history
+
+  🔑 Recovery (Shamir Secret Sharing):
+  • POST   /api/v1/recovery/wallet     - Recover wallet with shares
+  • GET    /api/v1/recovery/share-info - Get share distribution info
+
+  🔔 Webhooks:
+  • POST   /api/v1/webhook/usdt-incoming - Incoming payment notifications
 
 Environment: ${Deno.env.get('NODE_ENV') || 'development'}
 Runtime: Deno ${Deno.version.deno}

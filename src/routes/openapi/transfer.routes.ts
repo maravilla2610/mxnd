@@ -203,73 +203,10 @@ transferRoutes.openapi(estimateRoute, async (c) => {
   }
 });
 
-// Get Token Info Route
-const infoRoute = createRoute({
-  method: 'get',
-  path: '/info/{chain}/{tokenAddress}',
-  tags: ['Transfer'],
-  summary: 'Get token information',
-  description: 'Get information about any ERC-20 token (symbol, decimals, name)',
-  request: {
-    params: TokenInfoParamSchema
-  },
-  responses: {
-    200: {
-      description: 'Token information retrieved successfully',
-      content: {
-        'application/json': {
-          schema: TokenInfoResponseSchema
-        }
-      }
-    },
-    400: {
-      description: 'Invalid chain parameter',
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      }
-    },
-    500: {
-      description: 'Failed to get token information',
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      }
-    }
-  }
-});
-
-transferRoutes.openapi(infoRoute, async (c) => {
-  try {
-    const { chain, tokenAddress } = c.req.valid('param');
-
-    // Validate chain
-    if (!isValidChain(chain)) {
-      return c.json({
-        error: 'INVALID_CHAIN',
-        message: `Chain "${chain}" is not supported. Valid chains: ethereum, polygon, avalanche`
-      }, 400);
-    }
-
-    // Get token info
-    const info = await TokenService.getTokenInfo(chain as SupportedChain, tokenAddress);
-
-    return c.json(info, 200);
-  } catch (error: any) {
-    return c.json({
-      error: 'TOKEN_INFO_FAILED',
-      message: error.message || 'Failed to get token information',
-      details: error
-    }, 500);
-  }
-});
-
 // Transfer Token with Seed Phrase Route
 const transferWithSeedRoute = createRoute({
   method: 'post',
-  path: '/transfer-with-seed',
+  path: '/seed',
   tags: ['Transfer'],
   summary: 'Transfer token using seed phrase',
   description: 'Send any ERC-20 token using a seed phrase directly (no walletId required)',
@@ -432,85 +369,5 @@ transferRoutes.openapi(estimateWithSeedRoute, async (c) => {
   }
 });
 
-// Get Token Balance with Seed Phrase Route
-const balanceWithSeedRoute = createRoute({
-  method: 'post',
-  path: '/balance-with-seed',
-  tags: ['Transfer'],
-  summary: 'Get token balance using seed phrase',
-  description: 'Get the balance of any ERC-20 token using a seed phrase directly (no walletId required)',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: TokenBalanceWithSeedRequestSchema
-        }
-      }
-    }
-  },
-  responses: {
-    200: {
-      description: 'Token balance retrieved successfully',
-      content: {
-        'application/json': {
-          schema: TokenBalanceResponseSchema
-        }
-      }
-    },
-    400: {
-      description: 'Invalid request parameters',
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      }
-    },
-    500: {
-      description: 'Failed to get balance',
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      }
-    }
-  }
-});
-
-transferRoutes.openapi(balanceWithSeedRoute, async (c) => {
-  try {
-    const { seedPhrase, chain, tokenAddress } = c.req.valid('json');
-
-    // Validate chain
-    if (!isValidChain(chain)) {
-      return c.json({
-        error: 'INVALID_CHAIN',
-        message: `Chain "${chain}" is not supported. Valid chains: ethereum, polygon, avalanche`
-      }, 400);
-    }
-
-    // Validate seed phrase
-    if (!seedPhrase || seedPhrase.trim().split(/\s+/).length < 12) {
-      return c.json({
-        error: 'INVALID_SEED_PHRASE',
-        message: 'Seed phrase must contain at least 12 words'
-      }, 400);
-    }
-
-    // Get balance
-    const balance = await TokenService.getBalanceWithSeed(
-      seedPhrase.trim(),
-      chain as SupportedChain,
-      tokenAddress
-    );
-
-    return c.json(balance, 200);
-  } catch (error: any) {
-    return c.json({
-      error: 'BALANCE_FAILED',
-      message: error.message || 'Failed to get token balance',
-      details: error
-    }, 500);
-  }
-});
 
 export default transferRoutes;

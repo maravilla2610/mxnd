@@ -196,36 +196,5 @@ transferRoutes.post('/estimate/seed', async (c) => {
   }
 });
 
-/**
- * GET /api/v1/token/info/:chain/:tokenAddress
- * Get token information
- */
-transferRoutes.get('/info/:chain/:tokenAddress', async (c) => {
-  try {
-    const chain = c.req.param('chain');
-    const tokenAddress = c.req.param('tokenAddress');
-
-    // Validate chain
-    if (!isValidChain(chain)) {
-      const errorResponse: ErrorResponse = {
-        error: 'INVALID_CHAIN',
-        message: `Chain "${chain}" is not supported. Valid chains: ethereum, polygon, avalanche`
-      };
-      return c.json(errorResponse, 400);
-    }
-
-    // Get token info
-    const info = await TokenService.getTokenInfo(chain as SupportedChain, tokenAddress);
-
-    return c.json(info);
-  } catch (error: any) {
-    const errorResponse: ErrorResponse = {
-      error: 'TOKEN_INFO_FAILED',
-      message: error.message || 'Failed to get token information',
-      details: error
-    };
-    return c.json(errorResponse, 500);
-  }
-});
 
 export default transferRoutes;

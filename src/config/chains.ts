@@ -27,6 +27,13 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: Deno.env.get('AVALANCHE_RPC_URL') || 'https://api.avax.network/ext/bc/C/rpc',
     mxndContract: '0xD3eE4C575a2Db1b6077158210bfeE33c73Ac49C1',
     explorer: 'https://snowtrace.io'
+  },
+  bitcoin: {
+    name: 'Bitcoin',
+    chainId: 0,
+    rpcUrl: 'https://blockstream.info/api',
+    mxndContract: '',
+    explorer: 'https://www.blockchain.com/btc'
   }
 } as const;
 

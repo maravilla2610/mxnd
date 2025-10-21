@@ -1,29 +1,44 @@
 import { Hono } from 'hono';
 import { WalletService } from '../services/wallet.service.ts';
+import { AuthService } from '../services/auth.service.ts';
 import type { CreateWalletResponse, WalletInfo, ErrorResponse } from '../types/index.ts';
 
 const walletRoutes = new Hono();
 
 /**
- * POST /api/v1/wallet
- * Create a new wallet
+ * Middleware to verify authentication token
  */
-walletRoutes.post('/', async (c) => {
+const authMiddleware = async (c: any, next: any) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'UNAUTHORIZED', message: 'Authorization token is required' }, 401);
+  }
+
   try {
-    const { walletId, seedPhrase, addresses } = await WalletService.createWallet();
+    const token = authHeader.substring(7);
+    const userId = AuthService.verifyToken(token);
+    c.set('userId', userId);
+    await next();
+  } catch (error: any) {
+    return c.json({ error: 'UNAUTHORIZED', message: 'Invalid token' }, 401);
+  }
+};
 
-    const response: CreateWalletResponse = {
-      walletId,
-      seedPhrase,
-      addresses,
-      warning: '⚠️ STORE YOUR SEED PHRASE SECURELY! This is the only time it will be shown. You cannot recover your wallet without it.'
-    };
 
-    return c.json(response, 201);
+/**
+ * GET /api/v1/wallet/address
+ * Get wallet address for QR code generation (requires auth)
+ */
+walletRoutes.get('/address', authMiddleware, async (c) => {
+  try {
+    const userId = c.get('userId');
+    const walletInfo = await WalletService.getWalletAddress(userId);
+
+    return c.json(walletInfo);
   } catch (error: any) {
     const errorResponse: ErrorResponse = {
-      error: 'WALLET_CREATION_FAILED',
-      message: error.message || 'Failed to create wallet',
+      error: 'WALLET_ADDRESS_FAILED',
+      message: error.message || 'Failed to get wallet address',
       details: error
     };
     return c.json(errorResponse, 500);
@@ -31,34 +46,19 @@ walletRoutes.post('/', async (c) => {
 });
 
 /**
- * GET /api/v1/wallet/:walletId
- * Get wallet addresses
+ * GET /api/v1/wallet/balance
+ * Get USDT balance (requires auth)
  */
-walletRoutes.get('/:walletId', async (c) => {
+walletRoutes.get('/balance', authMiddleware, async (c) => {
   try {
-    const walletId = c.req.param('walletId');
+    const userId = c.get('userId');
+    const balance = await WalletService.getBalance(userId);
 
-    if (!WalletService.walletExists(walletId)) {
-      const errorResponse: ErrorResponse = {
-        error: 'WALLET_NOT_FOUND',
-        message: 'Wallet with the provided ID does not exist'
-      };
-      return c.json(errorResponse, 404);
-    }
-
-    const addresses = await WalletService.getWalletAddresses(walletId);
-
-    const response: WalletInfo = {
-      id: walletId,
-      addresses,
-      createdAt: new Date().toISOString() // In production, retrieve from storage
-    };
-
-    return c.json(response);
+    return c.json(balance);
   } catch (error: any) {
     const errorResponse: ErrorResponse = {
-      error: 'WALLET_FETCH_FAILED',
-      message: error.message || 'Failed to fetch wallet information',
+      error: 'BALANCE_FETCH_FAILED',
+      message: error.message || 'Failed to fetch balance',
       details: error
     };
     return c.json(errorResponse, 500);
@@ -66,21 +66,42 @@ walletRoutes.get('/:walletId', async (c) => {
 });
 
 /**
- * GET /api/v1/wallet
- * List all wallet IDs (debug endpoint)
+ * GET /api/v1/wallet/transactions
+ * Get transaction history (requires auth)
  */
-walletRoutes.get('/', async (c) => {
+walletRoutes.get('/transactions', authMiddleware, async (c) => {
   try {
-    const walletIds = WalletService.getAllWalletIds();
+    const userId = c.get('userId');
+    const limit = parseInt(c.req.query('limit') || '20');
 
-    return c.json({
-      count: walletIds.length,
-      wallets: walletIds
-    });
+    const transactions = await WalletService.getTransactions(userId, limit);
+
+    return c.json({ transactions });
   } catch (error: any) {
     const errorResponse: ErrorResponse = {
-      error: 'WALLET_LIST_FAILED',
-      message: error.message || 'Failed to list wallets',
+      error: 'TRANSACTIONS_FETCH_FAILED',
+      message: error.message || 'Failed to fetch transactions',
+      details: error
+    };
+    return c.json(errorResponse, 500);
+  }
+});
+
+/**
+ * GET /api/v1/wallet/balances
+ * Get multi-currency balances (requires auth)
+ */
+walletRoutes.get('/balances', authMiddleware, async (c) => {
+  try {
+    const userId = c.get('userId');
+
+    const balances = await WalletService.getMultiCurrencyBalance(userId);
+
+    return c.json(balances);
+  } catch (error: any) {
+    const errorResponse: ErrorResponse = {
+      error: 'BALANCES_FETCH_FAILED',
+      message: error.message || 'Failed to fetch multi-currency balances',
       details: error
     };
     return c.json(errorResponse, 500);

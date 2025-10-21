@@ -2,11 +2,14 @@ import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import { WalletService } from '../../services/wallet.service.ts';
 import { TokenService } from '../../services/token.service.ts';
 import { isValidChain, type SupportedChain } from '../../config/chains.ts';
+import { formatBalance } from '../../utils/formatters.ts';
 import {
   TokenBalanceResponseSchema,
   ErrorResponseSchema,
   TokenBalanceRequestSchema,
-  TokenBalanceWithSeedRequestSchema
+  TokenBalanceWithSeedRequestSchema,
+  NativeBalanceWithSeedRequestSchema,
+  NativeBalancesResponseSchema
 } from '../../schemas/index.ts';
 
 const balanceRoutes = new OpenAPIHono();
@@ -162,6 +165,98 @@ balanceRoutes.openapi(getBalanceWithSeedRoute, async (c) => {
     return c.json({
       error: 'BALANCE_FAILED',
       message: err.message || 'Failed to get token balance',
+      details: error
+    }, 500);
+  }
+});
+
+// Get Native Balances for All Chains with Seed Route
+const getNativeBalancesWithSeedRoute = createRoute({
+  method: 'post',
+  path: '/native/seed',
+  tags: ['Balance'],
+  summary: 'Get native token balances across all chains using seed phrase',
+  description: 'Retrieve native token (ETH, MATIC, AVAX) balances for all supported chains using a seed phrase',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: NativeBalanceWithSeedRequestSchema
+        }
+      }
+    }
+  },
+  responses: {
+    200: {
+      description: 'Native balances retrieved successfully',
+      content: {
+        'application/json': {
+          schema: NativeBalancesResponseSchema
+        }
+      }
+    },
+    400: {
+      description: 'Invalid seed phrase',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    500: {
+      description: 'Server error',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+balanceRoutes.openapi(getNativeBalancesWithSeedRoute, async (c) => {
+  try {
+    const { seedPhrase } = c.req.valid('json');
+
+    // Validate seed phrase
+    if (!seedPhrase || seedPhrase.trim().split(/\s+/).length < 12) {
+      return c.json({
+        error: 'INVALID_SEED_PHRASE',
+        message: 'Seed phrase must contain at least 12 words'
+      }, 400);
+    }
+
+    // Get native balances for all chains
+    const balances = await TokenService.getNativeBalanceWithSeed(seedPhrase.trim());
+
+    // Format balances with proper decimals (18 for all native tokens)
+    const formattedBalances = {
+      ethereum: {
+        raw: balances.ethereum.toString(),
+        formatted: formatBalance(balances.ethereum, 18),
+        decimals: 18,
+        symbol: 'ETH'
+      },
+      polygon: {
+        raw: balances.polygon.toString(),
+        formatted: formatBalance(balances.polygon, 18),
+        decimals: 18,
+        symbol: 'MATIC'
+      },
+      avalanche: {
+        raw: balances.avalanche.toString(),
+        formatted: formatBalance(balances.avalanche, 18),
+        decimals: 18,
+        symbol: 'AVAX'
+      }
+    };
+
+    return c.json(formattedBalances, 200);
+  } catch (error) {
+    const err = error as Error;
+    return c.json({
+      error: 'BALANCE_FAILED',
+      message: err.message || 'Failed to get native balances',
       details: error
     }, 500);
   }
